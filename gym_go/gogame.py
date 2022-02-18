@@ -56,6 +56,10 @@ def next_state(state, action1d, canonical=False):
         state[govars.PASS_CHNL] = 0
 
         # Assert move is valid
+        """ print("action2d[0] :",action2d[0])
+        print("action2d[1] :",action2d[1])
+        print("INVD_CHNL : ")
+        print(state[govars.INVD_CHNL]) """
         assert state[govars.INVD_CHNL, action2d[0], action2d[1]] == 0, ("Invalid move", action2d)
 
         # Add piece

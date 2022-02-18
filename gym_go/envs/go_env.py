@@ -1,9 +1,11 @@
+import collections
 from enum import Enum
 
 import gym
 import numpy as np
 
 from gym_go import govars, rendering, gogame
+
 
 
 class RewardMethod(Enum):
@@ -20,6 +22,7 @@ class GoEnv(gym.Env):
     metadata = {'render.modes': ['terminal', 'human']}
     govars = govars
     gogame = gogame
+    timestep = 0
 
     def __init__(self, size, komi=0, reward_method='real'):
         '''
@@ -28,13 +31,21 @@ class GoEnv(gym.Env):
         real: gives 0 for in-game move, 1 for winning, -1 for losing,
             0 for draw, all from black player's perspective
         '''
+        self.timestep = 0
         self.size = size
         self.komi = komi
         self.state_ = gogame.init_state(size)
+        self.history = x = collections.deque(govars.NO_TIMESTEPS*np.zeros((govars.NUM_CHNLS, size, size)), govars.NO_TIMESTEPS)
+
         self.reward_method = RewardMethod(reward_method)
-        self.observation_space = gym.spaces.Box(np.float32(0), np.float32(govars.NUM_CHNLS),
-                                                shape=(govars.NUM_CHNLS, size, size))
-        self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_))
+        """  space = {'observation' : gym.spaces.Box(np.float32(0), np.float32(3),
+                                                    shape=(size*size*3,)),
+                                    'legal_moves' : gym.spaces.Discrete(gogame.action_size(self.state_)-1)} """
+
+        self.observation_space = gym.spaces.Box(np.float32(0), np.float32(3),
+                                                    shape=((size*size*3)+gogame.action_size(self.state_)-1,)) #gym.spaces.Dict(space) 
+
+        self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_)-1)
         self.done = False
 
     def reset(self):
@@ -44,7 +55,11 @@ class GoEnv(gym.Env):
         '''
         self.state_ = gogame.init_state(self.size)
         self.done = False
-        return np.copy(self.state_)
+        self.timestep = 0
+
+        """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
+                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten() } """
+        return np.append(np.copy(self.state_)[:3].flatten(),1-self.state_[govars.INVD_CHNL].flatten())
 
     def step(self, action):
         '''
@@ -59,9 +74,14 @@ class GoEnv(gym.Env):
         elif action is None:
             action = self.size ** 2
 
+        prev = np.copy(self.state_)
         self.state_ = gogame.next_state(self.state_, action, canonical=False)
         self.done = gogame.game_ended(self.state_)
-        return np.copy(self.state_), self.reward(), self.done, self.info()
+        self.timestep += 1
+        """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
+                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten() } """
+
+        return np.append(np.copy(self.state_)[:3].flatten(),1-self.state_[govars.INVD_CHNL].flatten()), self.reward(), self.done, self.info()
 
     def game_ended(self):
         return self.done
