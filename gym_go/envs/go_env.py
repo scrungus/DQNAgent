@@ -38,12 +38,15 @@ class GoEnv(gym.Env):
         self.history = x = collections.deque(govars.NO_TIMESTEPS*np.zeros((govars.NUM_CHNLS, size, size)), govars.NO_TIMESTEPS)
 
         self.reward_method = RewardMethod(reward_method)
-        """  space = {'observation' : gym.spaces.Box(np.float32(0), np.float32(3),
-                                                    shape=(size*size*3,)),
-                                    'legal_moves' : gym.spaces.Discrete(gogame.action_size(self.state_)-1)} """
+        """ space = {'observation' : gym.spaces.Box(np.float32(0), np.float32(3),
+                                                shape=(size*size*3,)),
+                                'legal_moves' : gym.spaces.Box(np.int64(0),np.int64(1),
+                                                shape=(gogame.action_size(self.state_)-1,), dtype=np.int64)
+                                }
 
-        self.observation_space = gym.spaces.Box(np.float32(0), np.float32(3),
-                                                    shape=((size*size*3)+gogame.action_size(self.state_)-1,)) #gym.spaces.Dict(space) 
+        self.observation_space =  gym.spaces.Dict(space)  """
+        self.observation_space =gym.spaces.Box(np.float32(0), np.float32(3),
+                                                shape=(size*size*3,))
 
         self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_)-1)
         self.done = False
@@ -58,8 +61,10 @@ class GoEnv(gym.Env):
         self.timestep = 0
 
         """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
-                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten() } """
-        return np.append(np.copy(self.state_)[:3].flatten(),1-self.state_[govars.INVD_CHNL].flatten())
+                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten()
+                                        }
+        return observations_and_legal_moves """
+        return np.copy(self.state_)[:3].flatten()
 
     def step(self, action):
         '''
@@ -79,9 +84,12 @@ class GoEnv(gym.Env):
         self.done = gogame.game_ended(self.state_)
         self.timestep += 1
         """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
-                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten() } """
+                                        'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten()
+                                        }
 
-        return np.append(np.copy(self.state_)[:3].flatten(),1-self.state_[govars.INVD_CHNL].flatten()), self.reward(), self.done, self.info()
+        return observations_and_legal_moves, self.reward(), self.done, self.info() """
+
+        return np.copy(self.state_)[:3].flatten(), self.reward(), self.done, self.info()
 
     def game_ended(self):
         return self.done
