@@ -48,7 +48,7 @@ class GoEnv(gym.Env):
         self.observation_space =gym.spaces.Box(np.float32(0), np.float32(3),
                                                 shape=(size*size*3,))
 
-        self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_)-1)
+        self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_))
         self.done = False
 
     def reset(self):
@@ -106,6 +106,7 @@ class GoEnv(gym.Env):
     def uniform_random_action(self):
         valid_moves = self.valid_moves()
         valid_move_idcs = np.argwhere(valid_moves).flatten()
+        print("valid_moves :",valid_move_idcs)
         return np.random.choice(valid_move_idcs)
 
     def info(self):
