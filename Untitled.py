@@ -125,7 +125,7 @@ class RLDataset(IterableDataset):
 
 def pickFileName():
     
-    files = os.listdir('log/trainingvals/')
+    files = os.listdir('/log/trainingvals/')
     
     return '{}.csv'.format(len(files)+1)
 
