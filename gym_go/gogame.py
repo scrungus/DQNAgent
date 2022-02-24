@@ -60,8 +60,11 @@ def next_state(state, action1d, canonical=False):
         print("action2d[1] :",action2d[1])
         print("INVD_CHNL : ")
         print(state[govars.INVD_CHNL]) """
-        assert state[govars.INVD_CHNL, action2d[0], action2d[1]] == 0, ("Invalid move", action2d)
-
+        try:
+            assert state[govars.INVD_CHNL, action2d[0], action2d[1]] == 0, ("Invalid move", action2d)
+        except AssertionError:
+            print("Valid Moves : ",valid_moves(state))
+            exit()
         # Add piece
         state[player, action2d[0], action2d[1]] = 1
 
@@ -157,6 +160,7 @@ def batch_next_states(batch_states, batch_action1d, canonical=False):
 def invalid_moves(state):
     # return a fixed size binary vector
     if game_ended(state):
+        print("GAME ENDED!")
         return np.zeros(action_size(state))
     return np.append(state[govars.INVD_CHNL].flatten(), 0)
 

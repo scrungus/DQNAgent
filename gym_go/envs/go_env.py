@@ -45,7 +45,7 @@ class GoEnv(gym.Env):
                                 }
 
         self.observation_space =  gym.spaces.Dict(space)  """
-        self.observation_space =gym.spaces.Box(np.float32(0), np.float32(3),
+        self.observation_space =gym.spaces.Box(np.float32(0), np.float32(5),
                                                 shape=(size*size*3,))
 
         self.action_space = gym.spaces.Discrete(gogame.action_size(self.state_))
@@ -59,6 +59,7 @@ class GoEnv(gym.Env):
         self.state_ = gogame.init_state(self.size)
         self.done = False
         self.timestep = 0
+        print("RESET!!")
 
         """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
                                         'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten()
@@ -67,11 +68,18 @@ class GoEnv(gym.Env):
         return np.copy(self.state_)[:3].flatten()
 
     def step(self, action):
+
+        print("stepping")
         '''
         Assumes the correct player is making a move. Black goes first.
         return observation, reward, done, info
         '''
-        assert not self.done
+        try:
+            assert not self.done
+        except AssertionError:
+            print("Valid Moves",self.valid_moves())
+            print("Invalid Moves :", gogame.invalid_moves(self.state_))
+            exit()
         if isinstance(action, tuple) or isinstance(action, list) or isinstance(action, np.ndarray):
             assert 0 <= action[0] < self.size
             assert 0 <= action[1] < self.size
@@ -82,6 +90,7 @@ class GoEnv(gym.Env):
         prev = np.copy(self.state_)
         self.state_ = gogame.next_state(self.state_, action, canonical=False)
         self.done = gogame.game_ended(self.state_)
+        print("returning done as",self.done)
         self.timestep += 1
         """ observations_and_legal_moves = {'observation' : np.copy(self.state_)[:3].flatten(),
                                         'legal_moves' : 1-self.state_[govars.INVD_CHNL].flatten()

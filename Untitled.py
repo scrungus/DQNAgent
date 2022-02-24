@@ -17,6 +17,8 @@ from torch import Tensor, nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import IterableDataset
+from pytorch_lightning.loggers import TensorBoardLogger
+import csv
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 AVAIL_GPUS = min(1, torch.cuda.device_count())
@@ -30,7 +32,7 @@ print(AVAIL_GPUS)
 class DQN(nn.Module):
     """Simple MLP network."""
 
-    def __init__(self, obs_size: int, n_actions: int, hidden_size: int = 128):
+    def __init__(self, obs_size: int, n_actions: int, hidden_size: int = 50):
         """
         Args:
             obs_size: observation/state size of the environment
@@ -44,6 +46,7 @@ class DQN(nn.Module):
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, n_actions),
+            nn.Softmax()
         )
 
     def forward(self, x):
@@ -81,6 +84,7 @@ class ReplayBuffer:
         self.buffer.append(experience)
 
     def sample(self, batch_size: int) -> Tuple:
+        print("Batch Size : ", batch_size)
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
         states, actions, rewards, dones, next_states = zip(*(self.buffer[idx] for idx in indices))
 
@@ -109,12 +113,21 @@ class RLDataset(IterableDataset):
         self.sample_size = sample_size
 
     def __iter__(self) -> Tuple:
-        states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
+        if self.buffer.__len__() > self.sample_size:
+            states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
+        else:
+            states, actions, rewards, dones, new_states = self.buffer.sample(self.buffer.__len__() )
         for i in range(len(dones)):
             yield states[i], actions[i], rewards[i], dones[i], new_states[i]
 
 
 # In[5]:
+
+def pickFileName():
+    
+    files = os.listdir('log/trainingvals/')
+    
+    return '{}.csv'.format(len(files)+1)
 
 
 import random
@@ -158,13 +171,18 @@ class Agent:
             q_values = net(state)
             print("q_values : ",q_values)
             #masking invalid actions
-            mask = torch.tensor(self.env.valid_moves(),dtype=torch.bool)
+            mask = torch.tensor(self.env.valid_moves(),dtype=torch.float)
             print("mask : ",mask)
-            masked = torch.masked_select(q_values,mask)
+            masked = q_values * mask
             print("masked : ",masked)
-            _, action = torch.max(masked, dim=1)
+            if(torch.count_nonzero(masked).item() == 0):
+                print("ALL ZEROS! Picking at random")
+                _, action = torch.max(mask, dim=0)
+            else:
+                _, action = torch.max(masked, dim=1)
+            print("picked : ",action)
             action = int(action.item())
-
+            print("action : ",action)
         return action
 
     @torch.no_grad()
@@ -189,6 +207,7 @@ class Agent:
 
         # do step in the environment
         new_state, reward, done, _ = self.env.step(action)
+        print("done , ",done)
 
         exp = Experience(self.state, action, reward, done, new_state)
 
@@ -196,6 +215,7 @@ class Agent:
 
         self.state = new_state
         if done:
+            print("resetting")
             self.reset()
         return reward, done
 
@@ -207,19 +227,19 @@ class DQNLightning(LightningModule):
     """Basic DQN Model."""
 
     def __init__(
-        self,
+        self, 
         batch_size: int = 16,
-        lr: float = 1e-2,
-        env: str = "CartPole-v0",
+        lr: float = 1e-3,
+        env: str = "gym_go:go-v1",
         gamma: float = 0.99,
-        sync_rate: int = 10,
+        sync_rate: int = 100,
         replay_size: int = 1000,
         warm_start_size: int = 1000,
         eps_last_frame: int = 1000,
         eps_start: float = 1.0,
         eps_end: float = 0.01,
         episode_length: int = 200,
-        warm_start_steps: int = 4,
+        warm_start_steps: int = 2000,
     ) -> None:
         """
         Args:
@@ -239,7 +259,7 @@ class DQNLightning(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.env = gym.make('gym_go:go-v1', size=3, komi=0)
+        self.env = gym.make('gym_go:go-v1', size=5, komi=6.5)
         obs_size = self.env.observation_space.shape[0]
         n_actions = self.env.action_space.n
 
@@ -252,18 +272,23 @@ class DQNLightning(LightningModule):
         self.episode_reward = 0
         self.populate(self.hparams.warm_start_steps)
 
-    def populate(self, steps: int = 1000) -> None:
+    def populate(self, steps: int = 2000) -> None:
         """Carries out several random steps through the environment to initially fill up the replay buffer with
         experiences.
 
         Args:
             steps: number of random steps to populate the buffer with
         """
+        print("populating...")
         for i in range(steps):
-            self.agent.play_step(self.net, epsilon=1.0)
+            _, done = self.agent.play_step(self.net, epsilon=1.0)
             #opponent plays random
-            self.env.step(self.env.uniform_random_action())
+            if not done:
+                _,_,done,_ = self.env.step(self.env.uniform_random_action())
+                if done: 
+                    self.env.reset()
         print("Finished populating")
+        self.env.reset()
 
     def forward(self, x: Tensor) -> Tensor:
         """Passes in a state x through the network and gets the q_values of each action as an output.
@@ -310,6 +335,9 @@ class DQNLightning(LightningModule):
         Returns:
             Training loss and log metrics
         """
+
+        global writer
+
         device = self.get_device(batch)
         epsilon = max(
             self.hparams.eps_end,
@@ -317,10 +345,19 @@ class DQNLightning(LightningModule):
         )
 
         # step through environment with agent
+        print("Agent playing")
         reward, done = self.agent.play_step(self.net, epsilon, device)
         
-        #opponent plays random
-        self.env.step(self.env.uniform_random_action())
+        if not done: 
+            #opponent plays random
+            print("Random move")
+            _,_,done2,_ = self.env.step(self.env.uniform_random_action())
+
+            if done2:
+                print("resetting")
+                self.env.reset()
+        else: 
+            print("Agent reset, not playing random")
         
         self.episode_reward += reward
 
@@ -343,10 +380,18 @@ class DQNLightning(LightningModule):
             "reward": torch.tensor(reward).to(device),
             "train_loss": loss,
         }
+
+        print("LOGGING!")
+        self.log("total_reward", torch.tensor(self.total_reward).to(device), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("reward", torch.tensor(reward).to(device), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+
         status = {
             "steps": torch.tensor(self.global_step).to(device),
             "total_reward": torch.tensor(self.total_reward).to(device),
         }
+
+        writer.writerow([self.global_step, self.total_reward, loss.unsqueeze(0).item()])
 
         return OrderedDict({"loss": loss, "log": log, "progress_bar": status})
 
@@ -376,13 +421,20 @@ class DQNLightning(LightningModule):
 # In[ ]:
 
 
+f = open('/log/trainingvals/{}'.format(pickFileName()), 'w+')
+writer = csv.writer(f)
+
 model = DQNLightning()
 
+
+tb_logger = TensorBoardLogger("/log/") 
 trainer = Trainer(
-    accelerator="cpu",
-    max_epochs=200,
+    gpus=[0],
+    max_epochs=50000,
     val_check_interval=100,
+    logger=tb_logger,
 )
 
 trainer.fit(model)
-
+print("F:",f)
+f.close()
