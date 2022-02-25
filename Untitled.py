@@ -122,8 +122,12 @@ class RLDataset(IterableDataset):
 
 
 # In[5]:
+from pathlib import Path
+
 
 def pickFileName():
+    
+    Path("/log/trainingvals/").mkdir(parents=True, exist_ok=True)
     
     files = os.listdir('/log/trainingvals/')
     
@@ -175,7 +179,7 @@ class Agent:
             print("mask : ",mask)
             if device not in ["cpu"]:
                 mask = mask.cuda(device)
-                
+
             masked = q_values * mask
             print("masked : ",masked)
             if(torch.count_nonzero(masked).item() == 0):
