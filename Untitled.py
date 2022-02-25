@@ -173,6 +173,9 @@ class Agent:
             #masking invalid actions
             mask = torch.tensor(self.env.valid_moves(),dtype=torch.float)
             print("mask : ",mask)
+            if device not in ["cpu"]:
+                mask = mask.cuda(device)
+                
             masked = q_values * mask
             print("masked : ",masked)
             if(torch.count_nonzero(masked).item() == 0):
