@@ -233,7 +233,7 @@ class DQNLightning(LightningModule):
 
     def __init__(
         self, 
-        batch_size: int = 50,
+        batch_size: int = 64,
         lr: float = 1e-3,
         env: str = "gym_go:go-v1",
         gamma: float = 0.99,
@@ -434,7 +434,8 @@ model = DQNLightning()
 
 tb_logger = TensorBoardLogger("/log/") 
 trainer = Trainer(
-    accelerator='cpu',
+    accelerator="gpu",
+    gpus=[0],
     max_epochs=50000,
     val_check_interval=100,
     logger=tb_logger,
