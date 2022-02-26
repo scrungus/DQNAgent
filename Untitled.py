@@ -207,7 +207,7 @@ class Agent:
         Returns:
             reward, done
         """
-        
+
         action = self.get_action(net, epsilon, device)
 
         # do step in the environment
@@ -434,9 +434,10 @@ model = DQNLightning()
 
 tb_logger = TensorBoardLogger("/log/") 
 trainer = Trainer(
-    accelerator="gpu",
-    gpus=[0],
-    max_epochs=50000,
+    #accelerator="gpu",
+    #gpus=[0],
+    accelerator="cpu",
+    max_epochs=1,
     val_check_interval=100,
     logger=tb_logger,
 )

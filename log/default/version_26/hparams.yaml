@@ -1,0 +1,12 @@
+batch_size: 64
+env: gym_go:go-v1
+episode_length: 200
+eps_end: 0.01
+eps_last_frame: 10000
+eps_start: 1.0
+gamma: 0.99
+lr: 0.001
+replay_size: 20000
+sync_rate: 500
+warm_start_size: 1000
+warm_start_steps: 1
