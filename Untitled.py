@@ -108,15 +108,12 @@ class RLDataset(IterableDataset):
         sample_size: number of experiences to sample at a time
     """
 
-    def __init__(self, buffer: ReplayBuffer, sample_size: int = 200) -> None:
+    def __init__(self, buffer: ReplayBuffer, sample_size: int = 300) -> None:
         self.buffer = buffer
         self.sample_size = sample_size
 
     def __iter__(self) -> Tuple:
-        if self.buffer.__len__() > self.sample_size:
-            states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
-        else:
-            states, actions, rewards, dones, new_states = self.buffer.sample(self.buffer.__len__() )
+        states, actions, rewards, dones, new_states = self.buffer.sample(self.buffer.__len__() )
         for i in range(len(dones)):
             yield states[i], actions[i], rewards[i], dones[i], new_states[i]
 
@@ -166,6 +163,7 @@ class Agent:
         """
         if np.random.random() < epsilon:
             action = random.choice([i for i, e in enumerate(self.env.valid_moves()) if e == 1])
+            #maybe with high epsilon at the start, replay buffer disproportionately fills up with pass, as pass is always a choice?
         else:
             state = torch.tensor([self.state])
 
@@ -235,18 +233,18 @@ class DQNLightning(LightningModule):
 
     def __init__(
         self, 
-        batch_size: int = 16,
+        batch_size: int = 50,
         lr: float = 1e-3,
         env: str = "gym_go:go-v1",
         gamma: float = 0.99,
-        sync_rate: int = 100,
-        replay_size: int = 1000,
+        sync_rate: int = 500,
+        replay_size: int = 20000,
         warm_start_size: int = 1000,
-        eps_last_frame: int = 1000,
+        eps_last_frame: int = 10000,
         eps_start: float = 1.0,
         eps_end: float = 0.01,
         episode_length: int = 200,
-        warm_start_steps: int = 2000,
+        warm_start_steps: int = 1,
     ) -> None:
         """
         Args:
@@ -279,7 +277,7 @@ class DQNLightning(LightningModule):
         self.episode_reward = 0
         self.populate(self.hparams.warm_start_steps)
 
-    def populate(self, steps: int = 2000) -> None:
+    def populate(self, steps: int = 1000) -> None:
         """Carries out several random steps through the environment to initially fill up the replay buffer with
         experiences.
 
@@ -436,7 +434,7 @@ model = DQNLightning()
 
 tb_logger = TensorBoardLogger("/log/") 
 trainer = Trainer(
-    gpus=[0],
+    accelerator='cpu',
     max_epochs=50000,
     val_check_interval=100,
     logger=tb_logger,
@@ -444,4 +442,5 @@ trainer = Trainer(
 
 trainer.fit(model)
 print("F:",f)
+
 f.close()
